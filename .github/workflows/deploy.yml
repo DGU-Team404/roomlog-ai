@@ -60,6 +60,7 @@ jobs:
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
           docker pull "$IMAGE:latest"
+          docker logout ghcr.io
 
           docker stop roomlog-ai 2>/dev/null || true
           docker rm roomlog-ai 2>/dev/null || true
