@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+httpx
+openai>=1.0.0
+fal-client
+boto3
+open3d
+opencv-python-headless
+scipy
+numpy
+Pillow
+scikit-video
+python-multipart
