@@ -39,12 +39,6 @@ class ErrorResponse(BaseModel):
     data: None = None
 
 
-class ReconstructionData(BaseModel):
-    scan_id: int = Field(description="백엔드 스캔 ID")
-    point_cloud_url: str = Field(description="포인트 클라우드 PLY 파일 URL")
-    mesh_url: str = Field(description="메시 파일 URL")
-
-
 class Point3D(BaseModel):
     x: float = Field(description="X 좌표 (m)")
     y: float = Field(description="Y 좌표 (m)")

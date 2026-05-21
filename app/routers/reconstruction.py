@@ -5,35 +5,41 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks
 
+from app.core.callback import post_reconstruction_result
 from app.core.storage import download_scan_zip, upload_to_s3
 from app.models.request import ReconstructionRequest
-from app.models.response import APIResponse, ErrorResponse, ReconstructionData
+from app.models.response import APIResponse, ErrorResponse
 from app.services.tsdf_service import run_reconstruction
 
 router = APIRouter(tags=["AI-R01. 3D 재구성"])
 
 
 async def _run(body: ReconstructionRequest) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
 
-        scan = await asyncio.to_thread(download_scan_zip, body.scan_url, str(tmp_path / "scan"))
+            scan = await asyncio.to_thread(download_scan_zip, body.scan_url, str(tmp_path / "scan"))
 
-        pcd_path, mesh_path = await asyncio.to_thread(
-            run_reconstruction,
-            scan.video_path,
-            scan.depth_dir,
-            scan.conf_dir,
-            scan.camera_matrix_path,
-            scan.odometry_path,
-            tmp_path / "output",
-        )
+            pcd_path, mesh_path = await asyncio.to_thread(
+                run_reconstruction,
+                scan.video_path,
+                scan.depth_dir,
+                scan.conf_dir,
+                scan.camera_matrix_path,
+                scan.odometry_path,
+                tmp_path / "output",
+            )
 
-        prefix = f"scans/{body.scan_id}/{uuid.uuid4().hex}"
-        await asyncio.gather(
-            asyncio.to_thread(upload_to_s3, pcd_path.read_bytes(), f"{prefix}/point_cloud.ply"),
-            asyncio.to_thread(upload_to_s3, mesh_path.read_bytes(), f"{prefix}/mesh.ply"),
-        )
+            prefix = f"scans/{body.scan_id}/{uuid.uuid4().hex}"
+            _, mesh_url = await asyncio.gather(
+                asyncio.to_thread(upload_to_s3, pcd_path.read_bytes(), f"{prefix}/point_cloud.ply"),
+                asyncio.to_thread(upload_to_s3, mesh_path.read_bytes(), f"{prefix}/mesh.ply"),
+            )
+
+        await post_reconstruction_result(body.scan_id, mesh_url)
+    except Exception:
+        pass
 
 
 @router.post(
