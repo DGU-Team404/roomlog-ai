@@ -6,7 +6,6 @@ from app.models.response import DefectItem
 
 
 class ReconstructionRequest(BaseModel):
-    analysis_id: int = Field(description="백엔드 분석 ID (콜백 시 사용)")
     scan_id: int = Field(description="백엔드 스캔 ID")
     scan_url: str = Field(description="스캔 원시 데이터 ZIP URL")
 
