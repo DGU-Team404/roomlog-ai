@@ -19,6 +19,9 @@ dependencies = [
     "Pillow",
     "scikit-video",
     "python-multipart",
+    "redis[asyncio]",
+    "boto3",
+    "fal-client",
 ]
 
 [project.optional-dependencies]
