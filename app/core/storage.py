@@ -1,29 +1,39 @@
 import zipfile
 from pathlib import Path
+from typing import NamedTuple
 
 import boto3
 import httpx
 
 
-def download_to_tempdir(url: str, filename: str, tmp_dir: str) -> Path:
-    dest = Path(tmp_dir) / filename
+
+class ScanFiles(NamedTuple):
+    video_path: Path
+    camera_matrix_path: Path
+    odometry_path: Path
+    depth_dir: Path
+    conf_dir: Path
+
+
+def download_scan_zip(url: str, extract_dir: str) -> ScanFiles:
+    base = Path(extract_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    tmp_zip = base / "_scan.zip"
     with httpx.stream("GET", url) as r:
         r.raise_for_status()
-        with open(dest, "wb") as f:
+        with open(tmp_zip, "wb") as f:
             for chunk in r.iter_bytes():
                 f.write(chunk)
-    return dest
-
-
-def download_and_extract_zip(url: str, extract_dir: str) -> Path:
-    Path(extract_dir).mkdir(parents=True, exist_ok=True)
-    tmp_zip = Path(extract_dir) / "_tmp.zip"
-    download_to_tempdir(url, "_tmp.zip", extract_dir)
-    out_dir = Path(extract_dir)
     with zipfile.ZipFile(tmp_zip) as zf:
-        zf.extractall(out_dir)
+        zf.extractall(base)
     tmp_zip.unlink()
-    return out_dir
+    return ScanFiles(
+        video_path=base / "rgb.mp4",
+        camera_matrix_path=base / "camera_matrix.csv",
+        odometry_path=base / "odometry.csv",
+        depth_dir=base / "depth",
+        conf_dir=base / "confidence",
+    )
 
 
 _CONTENT_TYPES = {

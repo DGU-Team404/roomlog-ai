@@ -47,54 +47,11 @@ def _load_depth(depth_dir: Path, conf_dir: Path, frame_idx: int) -> np.ndarray:
     return depth_m
 
 
-def _crop_base64(data_uri: str, bbox: list[float]) -> str:
-    _, encoded = data_uri.split(",", 1)
-    img = cv2.imdecode(np.frombuffer(base64.b64decode(encoded), np.uint8), cv2.IMREAD_COLOR)
-    x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-    crop = img[y1:y2, x1:x2]
-    _, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
-    return base64.b64encode(buf).decode("utf-8")
-
 
 def _centroid(region_3d: list[Point3D]) -> np.ndarray:
     pts = np.array([[p.x, p.y, p.z] for p in region_3d])
     return pts.mean(axis=0)
 
-
-def _find_before_image(
-    centroid: np.ndarray,
-    poses: dict[int, np.ndarray],
-    frame_dict: dict[int, str],
-    K: np.ndarray,
-) -> str:
-    best_idx = min(
-        (i for i in frame_dict if i in poses),
-        key=lambda i: float(np.linalg.norm(poses[i][:3, 3] - centroid)),
-        default=None,
-    )
-    if best_idx is None:
-        return ""
-    data_uri = frame_dict.get(best_idx)
-    if data_uri is None:
-        return ""
-
-    T_CW = np.linalg.inv(poses[best_idx])
-    p_c = T_CW @ np.append(centroid, 1.0)
-    if p_c[2] <= 0:
-        return ""
-
-    u = K[0, 0] * p_c[0] / p_c[2] + K[0, 2]
-    v = K[1, 1] * p_c[1] / p_c[2] + K[1, 2]
-
-    _, encoded = data_uri.split(",", 1)
-    img = cv2.imdecode(np.frombuffer(base64.b64decode(encoded), np.uint8), cv2.IMREAD_COLOR)
-    H, W = img.shape[:2]
-    half = 100
-    x1, y1 = max(0, int(u) - half), max(0, int(v) - half)
-    x2, y2 = min(W, int(u) + half), min(H, int(v) + half)
-    crop = img[y1:y2, x1:x2]
-    _, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
-    return base64.b64encode(buf).decode("utf-8")
 
 
 async def _gpt_detect(frames: list[tuple[int, str]]) -> list[dict]:
@@ -186,7 +143,6 @@ async def _run_detection(
         polygon_2d = await asyncio.to_thread(_sam3_segment, image_bytes, bbox)
         depth_map = _load_depth(depth_dir, conf_dir, frame_idx)
         region_3d = polygon_to_3d(polygon_2d, depth_map, K, T_WC)
-        image_data = _crop_base64(data_uri, bbox)
 
         items.append(
             DefectItem(
@@ -195,7 +151,6 @@ async def _run_detection(
                 location=d["location"],
                 area=float(d["area"]),
                 description=d["description"],
-                image_data=image_data,
                 region_3d=region_3d,
             )
         )
@@ -218,23 +173,9 @@ async def detect_defects(
 
 
 async def compare_defects(
-    in_video_path: Path,
-    in_depth_dir: Path,
-    in_conf_dir: Path,
-    in_camera_matrix_path: Path,
-    in_odometry_path: Path,
-    out_video_path: Path,
-    out_depth_dir: Path,
-    out_conf_dir: Path,
-    out_camera_matrix_path: Path,
-    out_odometry_path: Path,
-    every_n_frames: int = 30,
+    in_defects: list[DefectItem],
+    out_defects: list[DefectItem],
 ) -> list[ComparisonDefectItem]:
-    (in_defects, in_poses, in_frame_dict, in_K), (out_defects, _, _, _) = await asyncio.gather(
-        _run_detection(in_video_path, in_depth_dir, in_conf_dir, in_camera_matrix_path, in_odometry_path, every_n_frames),
-        _run_detection(out_video_path, out_depth_dir, out_conf_dir, out_camera_matrix_path, out_odometry_path, every_n_frames),
-    )
-
     in_centroids = [_centroid(d.region_3d) for d in in_defects if d.region_3d]
 
     results: list[ComparisonDefectItem] = []
@@ -250,7 +191,6 @@ async def compare_defects(
         if is_existing:
             continue
 
-        before_data = _find_before_image(out_centroid, in_poses, in_frame_dict, in_K)
         results.append(
             ComparisonDefectItem(
                 type=d.type,
@@ -258,8 +198,6 @@ async def compare_defects(
                 location=d.location,
                 area=d.area,
                 description=d.description,
-                before_image_data=before_data,
-                after_image_data=d.image_data,
                 region_3d=d.region_3d,
             )
         )

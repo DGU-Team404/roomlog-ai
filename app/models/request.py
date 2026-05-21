@@ -1,35 +1,35 @@
-from pydantic import BaseModel, Field
+from typing import Optional
+
+from pydantic import BaseModel, Field, model_validator
+
+from app.models.response import DefectItem
 
 
 class ReconstructionRequest(BaseModel):
+    analysis_id: int = Field(description="백엔드 분석 ID (콜백 시 사용)")
     scan_id: int = Field(description="백엔드 스캔 ID")
-    rgb_video_url: str = Field(description="RGB 영상 URL (.mp4)")
-    depth_dir_url: str = Field(description="Depth 이미지 디렉토리 URL")
-    confidence_dir_url: str = Field(description="Confidence 이미지 디렉토리 URL")
-    camera_matrix_url: str = Field(description="카메라 파라미터 CSV URL")
-    odometry_url: str = Field(description="오도메트리 CSV URL")
-    imu_url: str = Field(description="IMU 데이터 CSV URL")
+    scan_url: str = Field(description="스캔 원시 데이터 ZIP URL")
 
 
 class DefectDetectionRequest(BaseModel):
+    analysis_id: int = Field(description="백엔드 분석 ID (콜백 시 사용)")
     scan_id: int = Field(description="백엔드 스캔 ID")
-    rgb_video_url: str = Field(description="RGB 영상 URL (.mp4)")
-    depth_dir_url: str = Field(description="Depth 이미지 디렉토리 URL")
-    confidence_dir_url: str = Field(description="Confidence 이미지 디렉토리 URL")
-    camera_matrix_url: str = Field(description="카메라 파라미터 CSV URL")
-    odometry_url: str = Field(description="오도메트리 CSV URL")
+    scan_url: str = Field(description="스캔 원시 데이터 ZIP URL")
 
 
 class DefectComparisonRequest(BaseModel):
+    analysis_id: int = Field(description="백엔드 분석 ID (콜백 시 사용)")
     in_scan_id: int = Field(description="입주 시 스캔 ID")
-    in_rgb_video_url: str = Field(description="입주 시 RGB 영상 URL (.mp4)")
-    in_depth_dir_url: str = Field(description="입주 시 Depth 이미지 디렉토리 URL")
-    in_confidence_dir_url: str = Field(description="입주 시 Confidence 이미지 디렉토리 URL")
-    in_camera_matrix_url: str = Field(description="입주 시 카메라 파라미터 CSV URL")
-    in_odometry_url: str = Field(description="입주 시 오도메트리 CSV URL")
+    in_scan_url: Optional[str] = Field(default=None, description="입주 시 스캔 원시 데이터 ZIP URL")
+    in_defects_json: Optional[list[DefectItem]] = Field(default=None, description="입주 시 기존 하자 탐지 결과 (있으면 ZIP 처리 스킵)")
     out_scan_id: int = Field(description="퇴거 시 스캔 ID")
-    out_rgb_video_url: str = Field(description="퇴거 시 RGB 영상 URL (.mp4)")
-    out_depth_dir_url: str = Field(description="퇴거 시 Depth 이미지 디렉토리 URL")
-    out_confidence_dir_url: str = Field(description="퇴거 시 Confidence 이미지 디렉토리 URL")
-    out_camera_matrix_url: str = Field(description="퇴거 시 카메라 파라미터 CSV URL")
-    out_odometry_url: str = Field(description="퇴거 시 오도메트리 CSV URL")
+    out_scan_url: Optional[str] = Field(default=None, description="퇴거 시 스캔 원시 데이터 ZIP URL")
+    out_defects_json: Optional[list[DefectItem]] = Field(default=None, description="퇴거 시 기존 하자 탐지 결과 (있으면 ZIP 처리 스킵)")
+
+    @model_validator(mode="after")
+    def check_scan_sources(self):
+        if self.in_scan_url is None and self.in_defects_json is None:
+            raise ValueError("in_scan_url 또는 in_defects_json 중 하나는 필수입니다")
+        if self.out_scan_url is None and self.out_defects_json is None:
+            raise ValueError("out_scan_url 또는 out_defects_json 중 하나는 필수입니다")
+        return self
