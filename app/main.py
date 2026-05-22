@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.routers import defect_comparison, defect_detection, reconstruction
+
+logging.getLogger("app").setLevel(logging.INFO)
 
 tags_metadata = [
     {
