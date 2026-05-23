@@ -1,8 +1,8 @@
 from pathlib import Path
 
+import cv2
 import numpy as np
 import open3d as o3d
-import skvideo.io
 from PIL import Image
 from scipy.spatial.transform import Rotation
 
@@ -53,7 +53,6 @@ def _load_depth(depth_path: Path, conf_path: Path) -> np.ndarray:
     return depth_m
 
 
-
 def run_reconstruction(
     video_path: Path,
     depth_dir: Path,
@@ -73,21 +72,29 @@ def run_reconstruction(
         color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8,
     )
 
-    for i, (T_WC, rgb) in enumerate(zip(poses, skvideo.io.vreader(str(video_path)))):
-        if i >= len(depth_files):
-            break
-        rgb_small = np.asarray(
-            Image.fromarray(rgb).resize((_DEPTH_W, _DEPTH_H), resample=Image.BILINEAR)
-        )
-        depth_m = _load_depth(depth_files[i], conf_dir / f"{i:06d}.png")
-        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            o3d.geometry.Image(rgb_small),
-            o3d.geometry.Image(depth_m),
-            depth_scale=1.0,
-            depth_trunc=_MAX_DEPTH,
-            convert_rgb_to_intensity=False,
-        )
-        volume.integrate(rgbd, intrinsic, np.linalg.inv(T_WC))
+    cap = cv2.VideoCapture(str(video_path))
+    try:
+        for i, T_WC in enumerate(poses):
+            if i >= len(depth_files):
+                break
+            ret, bgr = cap.read()
+            if not ret:
+                break
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            rgb_small = np.asarray(
+                Image.fromarray(rgb).resize((_DEPTH_W, _DEPTH_H), resample=Image.BILINEAR)
+            )
+            depth_m = _load_depth(depth_files[i], conf_dir / f"{i:06d}.png")
+            rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+                o3d.geometry.Image(rgb_small),
+                o3d.geometry.Image(depth_m),
+                depth_scale=1.0,
+                depth_trunc=_MAX_DEPTH,
+                convert_rgb_to_intensity=False,
+            )
+            volume.integrate(rgbd, intrinsic, np.linalg.inv(T_WC))
+    finally:
+        cap.release()
 
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()
