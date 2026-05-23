@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -6,7 +7,13 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.routers import defect_comparison, defect_detection, reconstruction
 
-logging.getLogger("app").setLevel(logging.INFO)
+# uvicorn은 root 로거에 핸들러를 추가하지 않으므로, app 로거에 직접 핸들러 추가
+_app_logger = logging.getLogger("app")
+_app_logger.setLevel(logging.INFO)
+if not _app_logger.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s: %(message)s"))
+    _app_logger.addHandler(_handler)
 
 tags_metadata = [
     {
