@@ -8,12 +8,14 @@ from app.models.response import DefectItem
 class ReconstructionRequest(BaseModel):
     scan_id: int = Field(description="백엔드 스캔 ID")
     scan_url: str = Field(description="스캔 원시 데이터 ZIP URL")
+    callback_url: str = Field(description="처리 완료 후 결과를 전달할 콜백 URL")
 
 
 class DefectDetectionRequest(BaseModel):
     analysis_id: int = Field(description="백엔드 분석 ID (콜백 시 사용)")
     scan_id: int = Field(description="백엔드 스캔 ID")
     scan_url: str = Field(description="스캔 원시 데이터 ZIP URL")
+    callback_url: str = Field(description="처리 완료 후 결과를 전달할 콜백 URL")
 
 
 class DefectComparisonRequest(BaseModel):
@@ -24,6 +26,7 @@ class DefectComparisonRequest(BaseModel):
     out_scan_id: int = Field(description="퇴거 시 스캔 ID")
     out_scan_url: Optional[str] = Field(default=None, description="퇴거 시 스캔 원시 데이터 ZIP URL")
     out_defects_json: Optional[list[DefectItem]] = Field(default=None, description="퇴거 시 기존 하자 탐지 결과 (있으면 ZIP 처리 스킵)")
+    callback_url: str = Field(description="처리 완료 후 결과를 전달할 콜백 URL")
 
     @model_validator(mode="after")
     def check_scan_sources(self):

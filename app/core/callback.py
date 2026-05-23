@@ -21,21 +21,21 @@ async def _post_callback(url: str, payload: dict, label: str) -> None:
             logger.info("[%s] 콜백 응답 %s", label, resp.status_code)
 
 
-async def post_reconstruction_result(scan_id: int, scan_url: str) -> None:
-    if not settings.backend_url:
-        return
+async def post_reconstruction_result(callback_url: str, scan_id: int, scan_url: str) -> None:
+    """R01 콜백 — 백엔드가 요청 시 전달한 callback_url로 직접 POST"""
+    logger.info("[R01 콜백] url=%s scan_id=%s", callback_url, scan_id)
     await _post_callback(
-        url=f"{settings.backend_url}/scans/{scan_id}/result",
+        url=callback_url,
         payload={"scan_id": scan_id, "scan_url": scan_url},
         label="R01 콜백",
     )
 
 
-async def post_result(analysis_id: int, payload: dict) -> None:
-    if not settings.backend_url:
-        return
+async def post_result(callback_url: str, payload: dict) -> None:
+    """D01/D02 콜백 — 백엔드가 요청 시 전달한 callback_url로 직접 POST"""
+    logger.info("[D01/D02 콜백] url=%s", callback_url)
     await _post_callback(
-        url=f"{settings.backend_url}/analyses/{analysis_id}/result",
+        url=callback_url,
         payload=payload,
         label="D01/D02 콜백",
     )

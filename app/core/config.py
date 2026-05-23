@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
     api_key: str = "roomlog-ai-secret-key"
-    backend_url: str = ""
     redis_url: str = "redis://localhost:6379"
 
     model_config = {"env_file": ".env"}

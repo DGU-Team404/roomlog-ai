@@ -44,7 +44,7 @@ async def _run(body: ReconstructionRequest) -> None:
             )
 
         logger.info("[R01] 콜백 전송 중 mesh_url=%s", mesh_url)
-        await post_reconstruction_result(body.scan_id, mesh_url)
+        await post_reconstruction_result(body.callback_url, body.scan_id, mesh_url)
         logger.info("[R01] 완료 scan_id=%s", body.scan_id)
     except Exception as e:
         logger.error("[R01] 실패 scan_id=%s error=%s", body.scan_id, e, exc_info=True)
