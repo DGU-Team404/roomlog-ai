@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger("app")
@@ -14,6 +15,7 @@ from openai import AsyncOpenAI
 from scipy.spatial.transform import Rotation
 
 from app.core.config import settings
+from app.core.storage import upload_to_s3
 from app.models.response import ComparisonDefectItem, DefectItem, DefectType, Point3D, Severity
 from app.services.frame_service import extract_frames
 from app.services.pose_service import polygon_to_3d
@@ -185,6 +187,20 @@ async def _run_detection(
             logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon=%d개 depth_nonzero=%d depth_sample=%s",
                            frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)), depth_at_polygon)
 
+        # 하자 영역 크롭 이미지 S3 업로드
+        image_url = None
+        try:
+            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(img_w, x2), min(img_h, y2)
+            crop = img_arr[y1:y2, x1:x2]
+            if crop.size > 0:
+                _, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                key = f"defects/{uuid.uuid4().hex}.jpg"
+                image_url = await asyncio.to_thread(upload_to_s3, buf.tobytes(), key)
+        except Exception as e:
+            logger.warning("[D01] 하자 이미지 업로드 실패 frame_idx=%s error=%s", frame_idx, e)
+
         items.append(
             DefectItem(
                 type=DefectType(d["type"]),
@@ -193,6 +209,7 @@ async def _run_detection(
                 area=float(d["area"]),
                 description=d["description"],
                 region_3d=region_3d,
+                image_url=image_url,
             )
         )
 
@@ -240,6 +257,7 @@ async def compare_defects(
                 area=d.area,
                 description=d.description,
                 region_3d=d.region_3d,
+                image_url=d.image_url,
             )
         )
 
