@@ -1,8 +1,11 @@
 import asyncio
 import base64
 import json
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger("app")
 
 import cv2
 import fal_client
@@ -141,8 +144,13 @@ async def _run_detection(
         image_bytes = base64.b64decode(encoded)
 
         polygon_2d = await asyncio.to_thread(_sam3_segment, image_bytes, bbox)
+        if not polygon_2d:
+            logger.warning("[D01] SAM3 세그멘테이션 실패 frame_idx=%s bbox=%s", frame_idx, bbox)
         depth_map = _load_depth(depth_dir, conf_dir, frame_idx)
         region_3d = polygon_to_3d(polygon_2d, depth_map, K, T_WC)
+        if not region_3d:
+            logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon_2d=%d개 depth_nonzero=%d",
+                           frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)))
 
         items.append(
             DefectItem(
