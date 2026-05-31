@@ -40,8 +40,10 @@ def _build_poses(odometry_path: Path) -> dict[int, np.ndarray]:
     return poses
 
 
-def _load_depth(depth_dir: Path, conf_dir: Path, frame_idx: int) -> np.ndarray:
+def _load_depth(depth_dir: Path, conf_dir: Path, frame_idx: int) -> np.ndarray | None:
     depth = cv2.imread(str(depth_dir / f"{frame_idx:06d}.png"), cv2.IMREAD_UNCHANGED)
+    if depth is None:
+        return None
     depth_m = depth.astype(np.float32) / 1000.0
     conf_path = conf_dir / f"{frame_idx:06d}.png"
     if conf_path.exists():
@@ -129,6 +131,7 @@ async def _run_detection(
 
     frame_dict: dict[int, str] = dict(frames)
     raw_defects = await _gpt_detect(frames)
+    logger.info("[D01] GPT 탐지 결과 %d개 (프레임 %d개 분석)", len(raw_defects), len(frames))
 
     items: list[DefectItem] = []
     for d in raw_defects:
@@ -137,20 +140,50 @@ async def _run_detection(
 
         data_uri = frame_dict.get(frame_idx)
         T_WC = poses.get(frame_idx)
-        if data_uri is None or T_WC is None:
+        if data_uri is None:
+            logger.warning("[D01] 프레임 없음 frame_idx=%s (GPT가 잘못된 frame_index 반환)", frame_idx)
+            continue
+        if T_WC is None:
+            logger.warning("[D01] pose 없음 frame_idx=%s — odometry에 해당 프레임 없어 skip", frame_idx)
             continue
 
         _, encoded = data_uri.split(",", 1)
         image_bytes = base64.b64decode(encoded)
 
+        # 이미지 실제 해상도 확인 (SAM3 polygon 좌표계 기준)
+        img_arr = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if img_arr is None:
+            logger.warning("[D01] 이미지 디코딩 실패 frame_idx=%s", frame_idx)
+            continue
+        img_h, img_w = img_arr.shape[:2]
+
         polygon_2d = await asyncio.to_thread(_sam3_segment, image_bytes, bbox)
         if not polygon_2d:
             logger.warning("[D01] SAM3 세그멘테이션 실패 frame_idx=%s bbox=%s", frame_idx, bbox)
+
         depth_map = _load_depth(depth_dir, conf_dir, frame_idx)
-        region_3d = polygon_to_3d(polygon_2d, depth_map, K, T_WC)
-        if not region_3d:
-            logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon_2d=%d개 depth_nonzero=%d",
-                           frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)))
+        if depth_map is None:
+            logger.warning("[D01] depth 파일 없음 frame_idx=%s", frame_idx)
+            continue
+        depth_h, depth_w = depth_map.shape
+
+        # SAM3 polygon 좌표(이미지 해상도)를 depth map 해상도로 스케일
+        sx = depth_w / img_w
+        sy = depth_h / img_h
+        polygon_depth = [(u * sx, v * sy) for u, v in polygon_2d]
+
+        # camera matrix도 depth map 해상도 기준으로 스케일
+        K_depth = K.copy()
+        K_depth[0, 0] *= sx
+        K_depth[1, 1] *= sy
+        K_depth[0, 2] *= sx
+        K_depth[1, 2] *= sy
+
+        region_3d = polygon_to_3d(polygon_depth, depth_map, K_depth, T_WC)
+        if not region_3d and polygon_2d:
+            depth_at_polygon = [float(depth_map[int(v * sy), int(u * sx)]) for u, v in polygon_2d[:3] if 0 <= int(v * sy) < depth_h and 0 <= int(u * sx) < depth_w]
+            logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon=%d개 depth_nonzero=%d depth_sample=%s",
+                           frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)), depth_at_polygon)
 
         items.append(
             DefectItem(
