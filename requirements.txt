@@ -10,5 +10,6 @@ opencv-python-headless
 scipy
 numpy
 Pillow
+matplotlib
 scikit-video
 python-multipart
