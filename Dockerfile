@@ -2,6 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV EGL_PLATFORM=surfaceless
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1 \
@@ -10,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxrender1 \
     libxext6 \
+    libegl1 \
+    libgl1-mesa-dri \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 appuser

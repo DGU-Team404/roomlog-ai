@@ -45,15 +45,11 @@ async def _run(body: ReconstructionRequest) -> None:
             )
 
             logger.info("[R01] 썸네일 생성 중")
-            thumbnail_url = None
-            try:
-                thumbnail_bytes = await generate_thumbnail(mesh_path)
-                thumbnail_url = await asyncio.to_thread(
-                    upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
-                )
-                logger.info("[R01] 썸네일 S3 업로드 완료")
-            except Exception as e:
-                logger.warning("[R01] 썸네일 생성 실패 (무시) error=%s", e)
+            thumbnail_bytes = await generate_thumbnail(mesh_path)
+            thumbnail_url = await asyncio.to_thread(
+                upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
+            )
+            logger.info("[R01] 썸네일 S3 업로드 완료")
 
         logger.info("[R01] 콜백 전송 중 mesh_url=%s", mesh_url)
         await post_reconstruction_result(body.callback_url, body.scan_id, mesh_url, thumbnail_url)

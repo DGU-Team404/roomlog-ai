@@ -1,16 +1,15 @@
 import asyncio
 import base64
+import copy
 import io
 import logging
+import os
+import tempfile
 from pathlib import Path
 
-import matplotlib
 import numpy as np
 import open3d as o3d
-
-matplotlib.use("Agg")  # headless 환경 — pyplot 임포트 전에 반드시 설정
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
+from PIL import Image
 
 from openai import AsyncOpenAI
 
@@ -21,74 +20,139 @@ logger = logging.getLogger("app")
 _openai = AsyncOpenAI(api_key=settings.openai_api_key)
 _PROMPT = (Path(__file__).parent.parent / "prompts" / "room_thumbnail.txt").read_text(encoding="utf-8")
 
-_MAX_TRIANGLES = 8000
+_W, _H = 960, 540
 
 
-def _project_mesh_to_isometric(mesh_path: Path) -> bytes:
+def _make_double_sided(mesh: o3d.geometry.TriangleMesh) -> o3d.geometry.TriangleMesh:
+    back = copy.deepcopy(mesh)
+    tri = np.asarray(back.triangles).copy()
+    back.triangles = o3d.utility.Vector3iVector(tri[:, [0, 2, 1]])
+    back.compute_vertex_normals()
+    return back
+
+
+def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
+    renderer = o3d.visualization.rendering.OffscreenRenderer(_W, _H)
+    renderer.scene.set_background([1.0, 1.0, 1.0, 1.0])
+
+    mat = o3d.visualization.rendering.MaterialRecord()
+    if mesh.has_vertex_colors():
+        mat.shader = "defaultUnlit"
+    else:
+        mat.shader = "defaultLit"
+        mat.base_color = [0.7, 0.7, 0.7, 1.0]
+
+    renderer.scene.add_geometry("mesh_front", mesh, mat)
+    renderer.scene.add_geometry("mesh_back", _make_double_sided(mesh), mat)
+    renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
+    renderer.scene.scene.enable_sun_light(True)
+    renderer.scene.set_indirect_light_intensity(15000)
+
+    bounds = mesh.get_axis_aligned_bounding_box()
+    center = bounds.get_center()
+    extent = np.linalg.norm(bounds.get_extent())
+
+    frames = []
+    for i in range(4):
+        az = np.radians(45 + 90 * i)
+        el = np.radians(25)
+        # ARKit/StrayScanner world frame is Y-up
+        eye = center + extent * 1.2 * np.array([
+            np.cos(el) * np.cos(az),
+            np.sin(el),
+            np.cos(el) * np.sin(az),
+        ])
+        renderer.setup_camera(60.0, center, eye, [0.0, 1.0, 0.0])
+        img = renderer.render_to_image()
+        buf = io.BytesIO()
+        Image.fromarray(np.asarray(img)).save(buf, format="PNG")
+        frames.append(buf.getvalue())
+
+    return frames
+
+
+def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
+    bounds = mesh.get_axis_aligned_bounding_box()
+    center = bounds.get_center().tolist()
+
+    vis = o3d.visualization.Visualizer()
+    vis.create_window(visible=True, width=_W, height=_H)
+    vis.add_geometry(mesh)
+    vis.add_geometry(_make_double_sided(mesh))
+
+    opt = vis.get_render_option()
+    opt.mesh_show_back_face = True
+    opt.light_on = True
+
+    frames = []
+    for i in range(4):
+        az = np.radians(45 + 90 * i)
+        el = np.radians(25)
+        front = [
+            np.cos(el) * np.cos(az),
+            np.sin(el),
+            np.cos(el) * np.sin(az),
+        ]
+
+        ctr = vis.get_view_control()
+        ctr.set_lookat(center)
+        ctr.set_up([0.0, 1.0, 0.0])
+        ctr.set_front(front)
+        ctr.set_zoom(0.5)
+
+        vis.poll_events()
+        vis.update_renderer()
+
+        fd, tmp_str = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        tmp = Path(tmp_str)
+        vis.capture_screen_image(str(tmp), do_render=True)
+        frames.append(tmp.read_bytes())
+        tmp.unlink()
+
+    vis.destroy_window()
+    return frames
+
+
+def get_render_frames(mesh_path: Path) -> list[bytes]:
     mesh = o3d.io.read_triangle_mesh(str(mesh_path))
-
-    vertices = np.asarray(mesh.vertices)
-    triangles = np.asarray(mesh.triangles)
-
-    if len(triangles) == 0 or len(vertices) == 0:
+    if len(mesh.triangles) == 0 or len(mesh.vertices) == 0:
         raise ValueError("mesh가 비어있음")
-
-    # 아이소메트릭 회전 행렬 (x축 35.26도, z축 45도)
-    ax = np.radians(35.264)
-    az = np.radians(45.0)
-    Rx = np.array([
-        [1, 0, 0],
-        [0, np.cos(ax), -np.sin(ax)],
-        [0, np.sin(ax), np.cos(ax)],
-    ])
-    Rz = np.array([
-        [np.cos(az), -np.sin(az), 0],
-        [np.sin(az), np.cos(az), 0],
-        [0, 0, 1],
-    ])
-    projected = (Rx @ Rz @ vertices.T).T  # (N, 3)
-
-    # 삼각형 샘플링
-    if len(triangles) > _MAX_TRIANGLES:
-        idx = np.random.choice(len(triangles), _MAX_TRIANGLES, replace=False)
-        triangles = triangles[idx]
-
-    # LineCollection으로 배치 렌더링 (루프 대신)
-    pts = projected[triangles]  # (M, 3, 3) — M개 삼각형, 각 3개 꼭짓점, xyz
-    xy = pts[:, :, :2]          # (M, 3, 2) — x, y만 사용
-    # 삼각형 3개 엣지: 0→1, 1→2, 2→0
-    edges = np.concatenate([
-        xy[:, [0, 1]],
-        xy[:, [1, 2]],
-        xy[:, [2, 0]],
-    ], axis=0)  # (3M, 2, 2)
-
-    fig, ax_plot = plt.subplots(figsize=(6, 6), facecolor="white")
-    ax_plot.set_aspect("equal")
-    ax_plot.axis("off")
-
-    lc = LineCollection(edges, colors="#4a90d9", linewidths=0.15, alpha=0.6)
-    ax_plot.add_collection(lc)
-    ax_plot.autoscale()
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.read()
+    mesh.compute_vertex_normals()
+    logger.info(
+        "[Thumbnail] 렌더링 시작 — vertices=%d triangles=%d EGL_PLATFORM=%s",
+        len(mesh.vertices),
+        len(mesh.triangles),
+        os.environ.get("EGL_PLATFORM", "미설정"),
+    )
+    try:
+        frames = _render_offscreen(mesh)
+        logger.info("[Thumbnail] OffscreenRenderer 성공 — %d frames", len(frames))
+        return frames
+    except Exception as e:
+        logger.warning("[Thumbnail] OffscreenRenderer 실패 (%s: %s) — Visualizer 폴백", type(e).__name__, e)
+        try:
+            frames = _render_visualizer(mesh)
+            logger.info("[Thumbnail] Visualizer 폴백 성공 — %d frames", len(frames))
+            return frames
+        except Exception as e2:
+            logger.error("[Thumbnail] Visualizer 폴백도 실패 (%s: %s)", type(e2).__name__, e2)
+            raise
 
 
 async def generate_thumbnail(mesh_path: Path) -> bytes:
-    logger.info("[Thumbnail] mesh 투영 시작")
-    projection_bytes = await asyncio.to_thread(_project_mesh_to_isometric, mesh_path)
-    logger.info("[Thumbnail] gpt-image-1 생성 요청")
+    logger.info("[Thumbnail] mesh 렌더링 시작")
+    frames = await asyncio.to_thread(get_render_frames, mesh_path)
+    logger.info("[Thumbnail] gpt-image-1 생성 요청 (frames=%d)", len(frames))
 
     response = await _openai.images.edit(
         model="gpt-image-1",
-        image=("projection.png", projection_bytes, "image/png"),
+        image=[
+            (f"view_{i}.png", frame, "image/png")
+            for i, frame in enumerate(frames)
+        ],
         prompt=_PROMPT,
         size="1024x1024",
-        response_format="b64_json",
     )
 
     image_bytes = base64.b64decode(response.data[0].b64_json)
