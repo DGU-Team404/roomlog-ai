@@ -47,7 +47,6 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
         renderer.scene.add_geometry("mesh_back", _make_double_sided(mesh), mat)
         renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
         renderer.scene.scene.enable_sun_light(True)
-        renderer.scene.set_indirect_light_intensity(15000)
 
         bounds = mesh.get_axis_aligned_bounding_box()
         center = bounds.get_center()
