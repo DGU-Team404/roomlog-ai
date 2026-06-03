@@ -10,7 +10,7 @@ from app.core.callback import post_reconstruction_result
 from app.core.storage import download_scan_zip, upload_to_s3
 from app.models.request import ReconstructionRequest
 from app.models.response import APIResponse, ErrorResponse
-from app.services.thumbnail_service import generate_thumbnail
+from app.services.thumbnail_service import generate_thumbnail, get_render_frames
 from app.services.tsdf_service import run_reconstruction
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,14 @@ async def _run(body: ReconstructionRequest) -> None:
             )
 
             logger.info("[R01] 썸네일 생성 중")
-            thumbnail_bytes = await generate_thumbnail(mesh_path)
+            frames = await asyncio.to_thread(get_render_frames, mesh_path)
+            await asyncio.gather(*[
+                asyncio.to_thread(upload_to_s3, frame, f"{prefix}/view_{i}.png")
+                for i, frame in enumerate(frames)
+            ])
+            logger.info("[R01] 렌더링 프레임 S3 업로드 완료")
+
+            thumbnail_bytes = await generate_thumbnail(frames)
             thumbnail_url = await asyncio.to_thread(
                 upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
             )
