@@ -143,9 +143,7 @@ def get_render_frames(mesh_path: Path) -> list[bytes]:
             raise
 
 
-async def generate_thumbnail(mesh_path: Path) -> bytes:
-    logger.info("[Thumbnail] mesh 렌더링 시작")
-    frames = await asyncio.to_thread(get_render_frames, mesh_path)
+async def generate_thumbnail(frames: list[bytes]) -> bytes:
     logger.info("[Thumbnail] gpt-image-1 생성 요청 (frames=%d)", len(frames))
 
     response = await _openai.images.edit(
