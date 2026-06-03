@@ -33,42 +33,47 @@ def _make_double_sided(mesh: o3d.geometry.TriangleMesh) -> o3d.geometry.Triangle
 
 def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
     renderer = o3d.visualization.rendering.OffscreenRenderer(_W, _H)
-    renderer.scene.set_background([1.0, 1.0, 1.0, 1.0])
+    try:
+        renderer.scene.set_background([1.0, 1.0, 1.0, 1.0])
 
-    mat = o3d.visualization.rendering.MaterialRecord()
-    if mesh.has_vertex_colors():
-        mat.shader = "defaultUnlit"
-    else:
-        mat.shader = "defaultLit"
-        mat.base_color = [0.7, 0.7, 0.7, 1.0]
+        mat = o3d.visualization.rendering.MaterialRecord()
+        if mesh.has_vertex_colors():
+            mat.shader = "defaultUnlit"
+        else:
+            mat.shader = "defaultLit"
+            mat.base_color = [0.7, 0.7, 0.7, 1.0]
 
-    renderer.scene.add_geometry("mesh_front", mesh, mat)
-    renderer.scene.add_geometry("mesh_back", _make_double_sided(mesh), mat)
-    renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
-    renderer.scene.scene.enable_sun_light(True)
-    renderer.scene.set_indirect_light_intensity(15000)
+        renderer.scene.add_geometry("mesh_front", mesh, mat)
+        renderer.scene.add_geometry("mesh_back", _make_double_sided(mesh), mat)
+        renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
+        renderer.scene.scene.enable_sun_light(True)
+        if hasattr(renderer.scene, "set_indirect_light_intensity"):
+            renderer.scene.set_indirect_light_intensity(15000)
 
-    bounds = mesh.get_axis_aligned_bounding_box()
-    center = bounds.get_center()
-    extent = np.linalg.norm(bounds.get_extent())
+        bounds = mesh.get_axis_aligned_bounding_box()
+        center = bounds.get_center()
+        extent = np.linalg.norm(bounds.get_extent())
 
-    frames = []
-    for i in range(4):
-        az = np.radians(45 + 90 * i)
-        el = np.radians(25)
-        # ARKit/StrayScanner world frame is Y-up
-        eye = center + extent * 1.2 * np.array([
-            np.cos(el) * np.cos(az),
-            np.sin(el),
-            np.cos(el) * np.sin(az),
-        ])
-        renderer.setup_camera(60.0, center, eye, [0.0, 1.0, 0.0])
-        img = renderer.render_to_image()
-        buf = io.BytesIO()
-        Image.fromarray(np.asarray(img)).save(buf, format="PNG")
-        frames.append(buf.getvalue())
+        frames = []
+        for i in range(4):
+            az = np.radians(45 + 90 * i)
+            el = np.radians(25)
+            # ARKit/StrayScanner world frame is Y-up
+            eye = center + extent * 1.2 * np.array([
+                np.cos(el) * np.cos(az),
+                np.sin(el),
+                np.cos(el) * np.sin(az),
+            ])
+            renderer.setup_camera(60.0, center, eye, [0.0, 1.0, 0.0])
+            img = renderer.render_to_image()
+            buf = io.BytesIO()
+            Image.fromarray(np.asarray(img)).save(buf, format="PNG")
+            frames.append(buf.getvalue())
 
-    return frames
+        return frames
+    finally:
+        # Filament 엔진은 생성한 스레드에서 소멸해야 함 (asyncio to_thread 크래시 방지)
+        del renderer
 
 
 def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
@@ -76,7 +81,7 @@ def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
     center = bounds.get_center().tolist()
 
     vis = o3d.visualization.Visualizer()
-    vis.create_window(visible=True, width=_W, height=_H)
+    vis.create_window(visible=False, width=_W, height=_H)
     vis.add_geometry(mesh)
     vis.add_geometry(_make_double_sided(mesh))
 

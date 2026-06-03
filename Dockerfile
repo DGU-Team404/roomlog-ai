@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libegl1 \
     libgl1-mesa-dri \
+    libosmesa6 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 appuser
