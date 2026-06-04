@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import copy
 import io
 import logging
 import os
@@ -34,13 +35,18 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
             mat.shader = "defaultLit"
             mat.base_color = [0.7, 0.7, 0.7, 1.0]
 
-        renderer.scene.add_geometry("mesh", mesh, mat)
         renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
         renderer.scene.scene.enable_sun_light(True)
 
         bounds = mesh.get_axis_aligned_bounding_box()
         center = bounds.get_center()
         extent = np.linalg.norm(bounds.get_extent())
+
+        mesh.compute_triangle_normals()
+        verts = np.asarray(mesh.vertices)
+        tris = np.asarray(mesh.triangles)
+        tnorm = np.asarray(mesh.triangle_normals)
+        tri_centers = verts[tris].mean(axis=1)
 
         frames = []
         for i in range(4):
@@ -52,6 +58,21 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
                 np.sin(el),
                 np.cos(el) * np.sin(az),
             ])
+
+            # 이 시점에서 카메라를 향하는 face 제거 (dollhouse view)
+            cam_dirs = eye - tri_centers
+            cam_dirs /= np.linalg.norm(cam_dirs, axis=1, keepdims=True) + 1e-9
+            dot = np.einsum('ij,ij->i', tnorm, cam_dirs)
+
+            view_mesh = copy.deepcopy(mesh)
+            view_mesh.remove_triangles_by_mask((dot > 0.0).tolist())
+            view_mesh.remove_unreferenced_vertices()
+            view_mesh.compute_vertex_normals()
+
+            if i > 0:
+                renderer.scene.remove_geometry("mesh")
+            renderer.scene.add_geometry("mesh", view_mesh, mat)
+
             renderer.setup_camera(60.0, center, eye, [0.0, 1.0, 0.0])
             img = renderer.render_to_image()
             buf = io.BytesIO()
