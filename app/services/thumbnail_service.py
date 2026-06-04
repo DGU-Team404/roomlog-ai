@@ -65,7 +65,7 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
             dot = np.einsum('ij,ij->i', tnorm, cam_dirs)
 
             view_mesh = copy.deepcopy(mesh)
-            view_mesh.remove_triangles_by_mask((dot > 0.0).tolist())
+            view_mesh.remove_triangles_by_mask((dot < 0.0).tolist())
             view_mesh.remove_unreferenced_vertices()
             view_mesh.compute_vertex_normals()
 
