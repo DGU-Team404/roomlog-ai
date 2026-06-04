@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import copy
 import io
 import logging
 import os
@@ -23,14 +22,6 @@ _PROMPT = (Path(__file__).parent.parent / "prompts" / "room_thumbnail.txt").read
 _W, _H = 960, 540
 
 
-def _make_double_sided(mesh: o3d.geometry.TriangleMesh) -> o3d.geometry.TriangleMesh:
-    back = copy.deepcopy(mesh)
-    tri = np.asarray(back.triangles).copy()
-    back.triangles = o3d.utility.Vector3iVector(tri[:, [0, 2, 1]])
-    back.compute_vertex_normals()
-    return back
-
-
 def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
     renderer = o3d.visualization.rendering.OffscreenRenderer(_W, _H)
     try:
@@ -43,8 +34,7 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
             mat.shader = "defaultLit"
             mat.base_color = [0.7, 0.7, 0.7, 1.0]
 
-        renderer.scene.add_geometry("mesh_front", mesh, mat)
-        renderer.scene.add_geometry("mesh_back", _make_double_sided(mesh), mat)
+        renderer.scene.add_geometry("mesh", mesh, mat)
         renderer.scene.scene.set_sun_light([0.577, -0.577, -0.577], [1.0, 1.0, 1.0], 75000)
         renderer.scene.scene.enable_sun_light(True)
 
@@ -55,7 +45,7 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
         frames = []
         for i in range(4):
             az = np.radians(45 + 90 * i)
-            el = np.radians(25)
+            el = np.radians(40)
             # ARKit/StrayScanner world frame is Y-up
             eye = center + extent * 1.2 * np.array([
                 np.cos(el) * np.cos(az),
@@ -81,7 +71,6 @@ def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
     vis = o3d.visualization.Visualizer()
     vis.create_window(visible=False, width=_W, height=_H)
     vis.add_geometry(mesh)
-    vis.add_geometry(_make_double_sided(mesh))
 
     opt = vis.get_render_option()
     opt.mesh_show_back_face = True
@@ -90,7 +79,7 @@ def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
     frames = []
     for i in range(4):
         az = np.radians(45 + 90 * i)
-        el = np.radians(25)
+        el = np.radians(40)
         front = [
             np.cos(el) * np.cos(az),
             np.sin(el),
