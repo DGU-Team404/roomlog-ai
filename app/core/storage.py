@@ -44,9 +44,6 @@ _CONTENT_TYPES = {
 }
 
 
-_PRESIGNED_EXPIRES = 86400  # 24h (S3 lifecycle 1일과 일치)
-
-
 def upload_to_s3(data: bytes, key: str) -> str:
     from app.core.config import settings
 
@@ -67,8 +64,4 @@ def upload_to_s3(data: bytes, key: str) -> str:
         Body=data,
         ContentType=_CONTENT_TYPES.get(Path(key).suffix.lower(), "application/octet-stream"),
     )
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": settings.s3_bucket_name, "Key": key},
-        ExpiresIn=_PRESIGNED_EXPIRES,
-    )
+    return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"
