@@ -187,12 +187,19 @@ async def _run_detection(
             logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon=%d개 depth_nonzero=%d depth_sample=%s",
                            frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)), depth_at_polygon)
 
-        # 하자 영역 크롭 이미지 S3 업로드
+        # 하자 영역 크롭 이미지 S3 업로드 (1:1.6 비율 고정)
         image_url = None
         try:
-            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(img_w, x2), min(img_h, y2)
+            cx = (bbox[0] + bbox[2]) / 2
+            cy = (bbox[1] + bbox[3]) / 2
+            bw = bbox[2] - bbox[0]
+            bh = bbox[3] - bbox[1]
+            w = max(bw, bh / 1.6)
+            h = w * 1.6
+            x1 = max(0, int(cx - w / 2))
+            y1 = max(0, int(cy - h / 2))
+            x2 = min(img_w, int(cx + w / 2))
+            y2 = min(img_h, int(cy + h / 2))
             crop = img_arr[y1:y2, x1:x2]
             if crop.size > 0:
                 _, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
