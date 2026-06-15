@@ -1,3 +1,4 @@
+import io
 import zipfile
 from pathlib import Path
 from typing import NamedTuple
@@ -64,7 +65,6 @@ def _get_s3():
 
 def upload_to_s3(data: bytes, key: str) -> str:
     from app.core.config import settings
-    import io
 
     s3 = _get_s3()
     s3.put_object(
