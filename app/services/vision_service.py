@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gc
 import json
 import logging
 import os
@@ -134,6 +135,7 @@ async def _run_detection(
     frame_dict: dict[int, str] = dict(frames)
     raw_defects = await _gpt_detect(frames)
     logger.info("[D01] GPT 탐지 결과 %d개 (프레임 %d개 분석)", len(raw_defects), len(frames))
+    del frames
 
     items: list[DefectItem] = []
     for d in raw_defects:
@@ -207,6 +209,8 @@ async def _run_detection(
                 image_url = await asyncio.to_thread(upload_to_s3, buf.tobytes(), key)
         except Exception as e:
             logger.warning("[D01] 하자 이미지 업로드 실패 frame_idx=%s error=%s", frame_idx, e)
+        finally:
+            del img_arr
 
         items.append(
             DefectItem(
@@ -220,6 +224,7 @@ async def _run_detection(
             )
         )
 
+    gc.collect()
     return items, poses, frame_dict, K
 
 

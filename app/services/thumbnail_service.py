@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import copy
+import gc
 import io
 import logging
 import os
@@ -78,11 +79,14 @@ def _render_offscreen(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
             buf = io.BytesIO()
             Image.fromarray(np.asarray(img)).save(buf, format="PNG")
             frames.append(buf.getvalue())
+            buf.close()
+            del view_mesh
 
         return frames
     finally:
         # Filament 엔진은 생성한 스레드에서 소멸해야 함 (asyncio to_thread 크래시 방지)
         del renderer
+        gc.collect()
 
 
 def _render_visualizer(mesh: o3d.geometry.TriangleMesh) -> list[bytes]:
@@ -151,6 +155,9 @@ def get_render_frames(mesh_path: Path) -> list[bytes]:
         except Exception as e2:
             logger.error("[Thumbnail] Visualizer 폴백도 실패 (%s: %s)", type(e2).__name__, e2)
             raise
+    finally:
+        del mesh
+        gc.collect()
 
 
 async def generate_thumbnail(frames: list[bytes]) -> bytes:

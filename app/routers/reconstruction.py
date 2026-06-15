@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks
 
 from app.core.callback import post_reconstruction_result
-from app.core.storage import download_scan_zip, upload_to_s3
+from app.core.storage import download_scan_zip, upload_file_to_s3, upload_to_s3
 from app.models.request import ReconstructionRequest
 from app.models.response import APIResponse, ErrorResponse
 from app.services.thumbnail_service import generate_thumbnail, get_render_frames
@@ -40,8 +40,8 @@ async def _run(body: ReconstructionRequest) -> None:
             logger.info("[R01] S3 업로드 중")
             prefix = f"scans/{body.scan_id}/{uuid.uuid4().hex}"
             _, mesh_url = await asyncio.gather(
-                asyncio.to_thread(upload_to_s3, pcd_path.read_bytes(), f"{prefix}/point_cloud.ply"),
-                asyncio.to_thread(upload_to_s3, mesh_path.read_bytes(), f"{prefix}/mesh.ply"),
+                asyncio.to_thread(upload_file_to_s3, pcd_path, f"{prefix}/point_cloud.ply"),
+                asyncio.to_thread(upload_file_to_s3, mesh_path, f"{prefix}/mesh.ply"),
             )
 
             logger.info("[R01] 썸네일 생성 중")
