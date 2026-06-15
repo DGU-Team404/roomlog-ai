@@ -52,7 +52,7 @@ class DefectItem(BaseModel):
     area: float = Field(description="하자 면적 (㎡)")
     description: str = Field(description="하자 상세 설명")
     region_3d: list[Point3D] = Field(description="3D 공간 상 하자 영역 꼭짓점 좌표 (SAM 3 segmentation polygon → depth + camera matrix + odometry 역투영)")
-    image_url: Optional[str] = Field(default=None, description="하자 영역 크롭 이미지 URL (S3 presigned, 24h 유효)")
+    image_url: Optional[str] = Field(default=None, description="하자 영역 크롭 이미지 URL")
 
 
 class DefectDetectionData(BaseModel):
@@ -66,7 +66,7 @@ class ComparisonDefectItem(BaseModel):
     area: float = Field(description="하자 면적 (㎡)")
     description: str = Field(description="하자 상세 설명")
     region_3d: list[Point3D] = Field(description="3D 공간 상 하자 영역 꼭짓점 좌표 (SAM 3 segmentation polygon → depth + camera matrix + odometry 역투영)")
-    image_url: Optional[str] = Field(default=None, description="하자 영역 크롭 이미지 URL (S3 presigned, 24h 유효)")
+    image_url: Optional[str] = Field(default=None, description="하자 영역 크롭 이미지 URL")
 
 
 class DefectComparisonData(BaseModel):
