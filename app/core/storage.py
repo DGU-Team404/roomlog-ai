@@ -6,7 +6,6 @@ import boto3
 import httpx
 
 
-
 class ScanFiles(NamedTuple):
     video_path: Path
     camera_matrix_path: Path
@@ -43,25 +42,50 @@ _CONTENT_TYPES = {
     ".png": "image/png",
 }
 
+_s3_client = None
+
+
+def _get_s3():
+    global _s3_client
+    if _s3_client is None:
+        from app.core.config import settings
+        boto_kwargs = {}
+        if settings.aws_access_key_id:
+            boto_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            boto_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+        _s3_client = boto3.client(
+            "s3",
+            region_name=settings.s3_region,
+            endpoint_url=f"https://s3.{settings.s3_region}.amazonaws.com",
+            **boto_kwargs,
+        )
+    return _s3_client
+
 
 def upload_to_s3(data: bytes, key: str) -> str:
     from app.core.config import settings
+    import io
 
-    boto_kwargs = {}
-    if settings.aws_access_key_id:
-        boto_kwargs["aws_access_key_id"] = settings.aws_access_key_id
-        boto_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
-
-    s3 = boto3.client(
-        "s3",
-        region_name=settings.s3_region,
-        endpoint_url=f"https://s3.{settings.s3_region}.amazonaws.com",
-        **boto_kwargs,
-    )
+    s3 = _get_s3()
     s3.put_object(
         Bucket=settings.s3_bucket_name,
         Key=key,
-        Body=data,
+        Body=io.BytesIO(data),
         ContentType=_CONTENT_TYPES.get(Path(key).suffix.lower(), "application/octet-stream"),
+    )
+    return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"
+
+
+def upload_file_to_s3(path: Path, key: str) -> str:
+    """파일을 RAM에 올리지 않고 디스크에서 직접 스트리밍 업로드."""
+    from app.core.config import settings
+
+    s3 = _get_s3()
+    content_type = _CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+    s3.upload_file(
+        str(path),
+        settings.s3_bucket_name,
+        key,
+        ExtraArgs={"ContentType": content_type},
     )
     return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"

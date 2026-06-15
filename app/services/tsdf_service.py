@@ -1,3 +1,4 @@
+import gc
 from pathlib import Path
 
 import cv2
@@ -46,9 +47,11 @@ def _load_poses(odometry_path: Path) -> list[np.ndarray]:
 
 
 def _load_depth(depth_path: Path, conf_path: Path) -> np.ndarray:
-    depth_m = np.array(Image.open(str(depth_path))).astype(np.float32) / 1000.0
+    with Image.open(str(depth_path)) as img:
+        depth_m = np.array(img).astype(np.float32) / 1000.0
     if conf_path.exists():
-        conf = np.array(Image.open(str(conf_path)))
+        with Image.open(str(conf_path)) as img:
+            conf = np.array(img)
         depth_m[conf < _CFG["confidence"]] = 0.0
     return depth_m
 
@@ -93,10 +96,12 @@ def run_reconstruction(
                 convert_rgb_to_intensity=False,
             )
             volume.integrate(rgbd, intrinsic, np.linalg.inv(T_WC))
+            del rgbd
     finally:
         cap.release()
 
     mesh = volume.extract_triangle_mesh()
+    del volume
     mesh.compute_vertex_normals()
 
     pcd = mesh.sample_points_uniformly(number_of_points=500_000)
@@ -107,5 +112,7 @@ def run_reconstruction(
 
     o3d.io.write_triangle_mesh(str(mesh_path), mesh)
     o3d.io.write_point_cloud(str(pcd_path), pcd)
+    del mesh, pcd
+    gc.collect()
 
     return pcd_path, mesh_path
