@@ -189,9 +189,27 @@ async def _run_detection(
             logger.warning("[D01] region_3d 비어있음 frame_idx=%s polygon=%d개 depth_nonzero=%d depth_sample=%s",
                            frame_idx, len(polygon_2d), int(np.count_nonzero(depth_map)), depth_at_polygon)
 
-        # 하자 영역 크롭 이미지 S3 업로드 (1:1.6 비율 고정)
+        # 하자 이미지 S3 업로드 (bbox 시각화 / 마스크 시각화 / 크롭)
         image_url = None
         try:
+            # bbox 시각화 (S3 저장만, 콜백 미포함)
+            bbox_vis = img_arr.copy()
+            cv2.rectangle(bbox_vis, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 255), 3)
+            _, buf = cv2.imencode(".jpg", bbox_vis, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            await asyncio.to_thread(upload_to_s3, buf.tobytes(), f"defects/{uuid.uuid4().hex}_bbox.jpg")
+
+            # SAM3 마스크 시각화 (S3 저장만, 콜백 미포함)
+            if polygon_2d:
+                mask_vis = img_arr.copy()
+                pts = np.array([[int(x), int(y)] for x, y in polygon_2d], dtype=np.int32)
+                overlay = mask_vis.copy()
+                cv2.fillPoly(overlay, [pts], (0, 255, 0))
+                cv2.addWeighted(overlay, 0.4, mask_vis, 0.6, 0, mask_vis)
+                cv2.polylines(mask_vis, [pts], True, (0, 255, 0), 2)
+                _, buf = cv2.imencode(".jpg", mask_vis, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                await asyncio.to_thread(upload_to_s3, buf.tobytes(), f"defects/{uuid.uuid4().hex}_mask.jpg")
+
+            # 크롭 이미지 (1:1.6 비율, 콜백 포함)
             cx = (bbox[0] + bbox[2]) / 2
             cy = (bbox[1] + bbox[3]) / 2
             bw = bbox[2] - bbox[0]
@@ -205,8 +223,7 @@ async def _run_detection(
             crop = img_arr[y1:y2, x1:x2]
             if crop.size > 0:
                 _, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                key = f"defects/{uuid.uuid4().hex}.jpg"
-                image_url = await asyncio.to_thread(upload_to_s3, buf.tobytes(), key)
+                image_url = await asyncio.to_thread(upload_to_s3, buf.tobytes(), f"defects/{uuid.uuid4().hex}.jpg")
         except Exception as e:
             logger.warning("[D01] 하자 이미지 업로드 실패 frame_idx=%s error=%s", frame_idx, e)
         finally:
