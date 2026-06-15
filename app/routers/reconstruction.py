@@ -1,4 +1,7 @@
 import asyncio
+import ctypes
+import ctypes.util
+import gc
 import logging
 import tempfile
 import uuid
@@ -15,6 +18,16 @@ from app.services.tsdf_service import run_reconstruction
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["AI-R01. 3D 재구성"])
+
+
+def _release_memory() -> None:
+    gc.collect()
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        libc.malloc_trim(0)
+        logger.info("[R01] malloc_trim 완료 — OS 메모리 반환")
+    except Exception as e:
+        logger.warning("[R01] malloc_trim 실패 (무시): %s", e)
 
 
 async def _run(body: ReconstructionRequest) -> None:
@@ -53,9 +66,11 @@ async def _run(body: ReconstructionRequest) -> None:
             logger.info("[R01] 렌더링 프레임 S3 업로드 완료")
 
             thumbnail_bytes = await generate_thumbnail(frames)
+            del frames
             thumbnail_url = await asyncio.to_thread(
                 upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
             )
+            del thumbnail_bytes
             logger.info("[R01] 썸네일 S3 업로드 완료")
 
         logger.info("[R01] 콜백 전송 중 mesh_url=%s", mesh_url)
@@ -63,6 +78,8 @@ async def _run(body: ReconstructionRequest) -> None:
         logger.info("[R01] 완료 scan_id=%s", body.scan_id)
     except Exception as e:
         logger.error("[R01] 실패 scan_id=%s error=%s", body.scan_id, e, exc_info=True)
+    finally:
+        await asyncio.to_thread(_release_memory)
 
 
 @router.post(
