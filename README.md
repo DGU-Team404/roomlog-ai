@@ -1,7 +1,7 @@
 # roomlog-ai
 
 > 자취/원룸 거주자를 위한 **3D 방 기록 & 하자 관리 서비스**의 AI 서버
-> 2026 동국대학교 정보통신공학과 졸업프로젝트 (DGU-ICE Capstone Design, Team 404)
+> 2026 한이음 드림업 프로젝트 (Team 404)
 
 LiDAR로 촬영한 방을 3D로 재구성하고, GPT Vision + SAM3으로 하자를 자동 탐지해 3D 좌표까지 매핑하는 서비스의 FastAPI AI 서버입니다.
 
@@ -127,4 +127,4 @@ docker run -p 8000:8000 --env-file .env roomlog-ai
 
 ## 📄 License
 
-[MIT License](LICENSE) © 2026 DGU Team404
+[MIT License](LICENSE) © 2026 Team404
