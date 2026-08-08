@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks
 
-from app.core.callback import post_reconstruction_result
+from app.core.callback import post_reconstruction_result, post_thumbnail_result
 from app.core.storage import download_scan_zip, upload_file_to_s3, upload_to_s3
 from app.models.request import ReconstructionRequest
 from app.models.response import APIResponse, ErrorResponse
@@ -57,24 +57,33 @@ async def _run(body: ReconstructionRequest) -> None:
                 asyncio.to_thread(upload_file_to_s3, mesh_path, f"{prefix}/mesh.ply"),
             )
 
-            logger.info("[R01] 썸네일 생성 중")
-            frames = await asyncio.to_thread(get_render_frames, mesh_path)
-            await asyncio.gather(*[
-                asyncio.to_thread(upload_to_s3, frame, f"{prefix}/view_{i}.png")
-                for i, frame in enumerate(frames)
-            ])
-            logger.info("[R01] 렌더링 프레임 S3 업로드 완료")
+            # 1차 콜백: mesh 완료 즉시 전송 — 썸네일 생성을 기다리지 않는다
+            logger.info("[R01] 1차 콜백 전송 중 mesh_url=%s", mesh_url)
+            await post_reconstruction_result(body.callback_url, body.scan_id, mesh_url)
+            logger.info("[R01] mesh 완료 scan_id=%s", body.scan_id)
 
-            thumbnail_bytes = await generate_thumbnail(frames)
-            del frames
-            thumbnail_url = await asyncio.to_thread(
-                upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
-            )
-            del thumbnail_bytes
-            logger.info("[R01] 썸네일 S3 업로드 완료")
+            # 썸네일은 1차 콜백 이후 진행 — 실패해도 mesh 결과에는 영향 없음
+            try:
+                logger.info("[R01] 썸네일 생성 중")
+                frames = await asyncio.to_thread(get_render_frames, mesh_path)
+                await asyncio.gather(*[
+                    asyncio.to_thread(upload_to_s3, frame, f"{prefix}/view_{i}.png")
+                    for i, frame in enumerate(frames)
+                ])
+                logger.info("[R01] 렌더링 프레임 S3 업로드 완료")
 
-        logger.info("[R01] 콜백 전송 중 mesh_url=%s", mesh_url)
-        await post_reconstruction_result(body.callback_url, body.scan_id, mesh_url, thumbnail_url)
+                thumbnail_bytes = await generate_thumbnail(frames)
+                del frames
+                thumbnail_url = await asyncio.to_thread(
+                    upload_to_s3, thumbnail_bytes, f"{prefix}/thumbnail.jpg"
+                )
+                del thumbnail_bytes
+                logger.info("[R01] 썸네일 S3 업로드 완료")
+
+                await post_thumbnail_result(body.callback_url, body.scan_id, thumbnail_url)
+            except Exception as e:
+                logger.error("[R01] 썸네일 처리 실패 (mesh는 완료) scan_id=%s error=%s", body.scan_id, e, exc_info=True)
+
         logger.info("[R01] 완료 scan_id=%s", body.scan_id)
     except Exception as e:
         logger.error("[R01] 실패 scan_id=%s error=%s", body.scan_id, e, exc_info=True)
