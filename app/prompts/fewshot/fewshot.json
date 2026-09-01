@@ -1,0 +1,68 @@
+[
+  {
+    "file": "defect_ex_1.jpg",
+    "defect": "SCRATCH",
+    "severity": "LOW",
+    "description": "타일 여러 장을 가로지르는 가늘고 긴 곡선형 긁힘. 곧게 뻗은 타일 이음선은 정상이며, 불규칙하게 휘어진 선이 하자"
+  },
+  {
+    "file": "defect_ex_2.jpg",
+    "defect": "SCRATCH",
+    "severity": "MEDIUM",
+    "description": "판재 표면의 점묘 형태로 흩어진 긁힘 무리. 오른쪽의 움푹 찍힌 파손(BREAKAGE)도 별도 하자임"
+  },
+  {
+    "file": "defect_ex_3.jpg",
+    "defect": "STAIN",
+    "severity": "LOW",
+    "description": "벽지의 누런 변색 얼룩. 색 차이가 약하고 경계가 흐릿해도 벽지 원래 질감과 다른 변색은 하자임"
+  },
+  {
+    "file": "defect_ex_4.jpg",
+    "defect": "STAIN",
+    "severity": "MEDIUM",
+    "description": "목재 표면에 검게 번진 문지름 얼룩. 파인 선이나 결이 드러난 흔적 없이 어두운 색만 불규칙하게 번져 있음"
+  },
+  {
+    "file": "defect_ex_5.jpg",
+    "defect": "STAIN",
+    "severity": "HIGH",
+    "description": "벽돌 표면에 검게 번진 그을음성 얼룩. 경계가 불규칙하게 번져 있고 표면 자체의 손상은 없음"
+  },
+  {
+    "file": "defect_ex_6.jpg",
+    "defect": "CRACK",
+    "severity": "HIGH",
+    "description": "벽돌 한 장 표면에 여러 갈래로 뻗은 균열. 선이 가늘고 어두우며 벽돌 자체의 요철 질감과 달리 날카롭게 갈라져 있음"
+  },
+  {
+    "file": "defect_ex_7.jpg",
+    "defect": "CRACK",
+    "severity": "MEDIUM",
+    "description": "걸레받이 바로 위 벽면을 따라 가로로 갈라진 균열. 선이 들쭉날쭉하게 벌어져 있어 틈이 보이며, 떨어져 나간 조각은 없음"
+  },
+  {
+    "file": "defect_ex_8.jpg",
+    "defect": "CRACK",
+    "severity": "MEDIUM",
+    "description": "가구 문짝 표면이 사선으로 갈라져 벌어진 균열. 떨어져 나간 조각 없이 선형으로 터져 있으며 가장자리가 살짝 들떠 있음"
+  },
+  {
+    "file": "defect_ex_9.jpg",
+    "defect": "PEELING",
+    "severity": "HIGH",
+    "description": "벽지가 뒤로 말리며 벗겨져 안쪽 종이와 바탕면이 드러남. 벗겨진 경계가 불규칙하게 찢겨 있고 들뜬 부분이 입체적으로 말려 있음"
+  },
+  {
+    "file": "defect_ex_10.jpg",
+    "defect": "BREAKAGE",
+    "severity": "HIGH",
+    "description": "벽돌 표면이 넓게 떨어져 나가 내부 골재가 드러난 파손. 표면 도장이 벗겨진 수준을 넘어 재료 자체가 탈락하여 깊이가 있음"
+  },
+  {
+    "file": "defect_ex_11.jpg",
+    "defect": "BREAKAGE",
+    "severity": "HIGH",
+    "description": "가구 문짝 표면이 뜯겨 나가 하부 자재가 드러난 파손. 뜯긴 부분의 질감이 주변과 달리 거칠고 움푹 들어가 있음"
+  }
+]
