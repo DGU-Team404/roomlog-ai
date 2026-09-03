@@ -31,7 +31,6 @@ _VERIFY_PROMPT = (_PROMPT_DIR / "defect_verification.txt").read_text(encoding="u
 _BATCH_SIZE = 6
 _MIN_CONFIDENCE = 0.5
 _MATCH_THRESHOLD_M = 0.3
-_VERIFY_MODEL = "gpt-5.4-mini"
 _DUP_MAX_TRANS_M = 0.15  # 중복 시점 스킵: 이동 15cm 미만
 _DUP_MAX_ROT_DEG = 15.0  # 중복 시점 스킵: 회전 15도 미만
 
@@ -266,7 +265,7 @@ async def _gpt_verify(crop_bytes: bytes, defect: dict) -> dict:
     b64 = base64.b64encode(crop_bytes).decode("utf-8")
     claimed = f"type={defect['type']}, severity={defect['severity']}, description={defect['description']}"
     response = await _openai.chat.completions.create(
-        model=_VERIFY_MODEL,
+        model="gpt-5.5",
         messages=[
             {"role": "system", "content": _VERIFY_PROMPT},
             {
@@ -332,13 +331,18 @@ def _mask_area_m2(mask: np.ndarray, depth_map: np.ndarray, K_depth: np.ndarray) 
     return float(np.sum(depth_map[sel] ** 2) / (K_depth[0, 0] * K_depth[1, 1]))
 
 
+# iOS 3D 뷰어의 하자 영역 표시와 동일한 systemBlue #007AFF (BGR), 채움 알파 0.15
+_OVERLAY_COLOR = (255, 122, 0)
+_OVERLAY_ALPHA = 0.15
+
+
 def _draw_seg_overlay(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     vis = img.copy()
     colored = img.copy()
-    colored[mask > 0] = (0, 255, 0)
-    cv2.addWeighted(colored, 0.4, vis, 0.6, 0, vis)
+    colored[mask > 0] = _OVERLAY_COLOR
+    cv2.addWeighted(colored, _OVERLAY_ALPHA, vis, 1 - _OVERLAY_ALPHA, 0, vis)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(vis, contours, -1, (0, 255, 0), 2)
+    cv2.drawContours(vis, contours, -1, _OVERLAY_COLOR, 2)
     return vis
 
 
@@ -484,16 +488,17 @@ async def _run_detection(
         for fi in [fi for fi in cache if fi not in keep_frames]:
             del cache[fi]
 
-    # 3) 2단계 검증 + 위치 재보정 — bbox 주변을 여유 있게 잘라 재확인하고, 크롭 안에서 정확한 bbox를 다시 받는다 (병렬)
-    async def _verify(c: dict) -> bool:
+    # 3) 위치 재보정 — bbox 주변을 여유 있게 잘라 정확한 bbox를 다시 받는다 (병렬).
+    # 하자를 기각하지 않는다: 재보정에 실패해도 원본 bbox로 유지.
+    async def _refine(c: dict) -> None:
         img = _get_img(c["frame_idx"])
         img_h, img_w = img.shape[:2]
         vx1, vy1, vx2, vy2 = _expand_bbox(c["bbox"], img_w, img_h)
         crop = img[vy1:vy2, vx1:vx2]
         if crop.size == 0:
-            return True
+            return
 
-        # 작은 크롭은 확대해서 판별 가능하게
+        # 작은 크롭은 확대해서 위치를 찍기 쉽게
         ch, cw = crop.shape[:2]
         if max(ch, cw) < 512:
             s = 512 / max(ch, cw)
@@ -503,12 +508,12 @@ async def _run_detection(
         try:
             result = await _gpt_verify(buf.tobytes(), c["defect"])
         except Exception as e:
-            logger.warning("[D01] 검증 호출 실패 — 통과 처리: %s", e)
-            return True
+            logger.warning("[D01] 위치 재보정 호출 실패 — 원본 bbox 유지: %s", e)
+            return
 
         if not result["confirmed"]:
-            logger.info("[D01] 검증 기각 type=%s reason=%s", c["defect"]["type"], result["reason"])
-            return False
+            logger.info("[D01] 재보정 단계 하자 미확인(기각 없이 유지) type=%s reason=%s",
+                        c["defect"]["type"], result["reason"])
 
         # 크롭 안에서 다시 찍은 정규화 좌표(0~1000)를 원본 픽셀로 역변환해 bbox 보정
         rb = result["bbox"]
@@ -519,15 +524,13 @@ async def _run_detection(
             y2 = vy1 + max(rb[1], rb[3]) / 1000 * (vy2 - vy1)
             if x2 - x1 >= 2 and y2 - y1 >= 2:
                 c["bbox"] = [x1, y1, x2, y2]
-        return True
 
-    verify_flags = await asyncio.gather(*[_verify(c) for c in deduped])
-    verified = [c for c, ok in zip(deduped, verify_flags) if ok]
-    logger.info("[D01] 검증 통과 %d개 / %d개", len(verified), len(deduped))
+    await asyncio.gather(*[_refine(c) for c in deduped])
+    logger.info("[D01] 위치 재보정 완료 %d개 (기각 없음)", len(deduped))
 
     # 4) SAM3 세그멘테이션 + 3D 역투영 + area 실측 + 시각화 업로드
     items: list[DefectItem] = []
-    for c in verified:
+    for c in deduped:
         d = c["defect"]
         frame_idx = c["frame_idx"]
         bbox: list[float] = c["bbox"]

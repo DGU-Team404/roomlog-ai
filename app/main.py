@@ -1,5 +1,7 @@
 import logging
 import sys
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -13,6 +15,15 @@ if not _app_logger.handlers:
     _handler = logging.StreamHandler(sys.stdout)
     _handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s: %(message)s"))
     _app_logger.addHandler(_handler)
+
+    # R01/D01/D02 API 호출 로그를 날짜별 파일로도 기록 (append, 자정에 파일 교체)
+    _log_dir = Path(__file__).parent.parent / "logs"
+    _log_dir.mkdir(exist_ok=True)
+    _file_handler = TimedRotatingFileHandler(_log_dir / "api.log", when="midnight", encoding="utf-8")
+    _file_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s:%(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+    _app_logger.addHandler(_file_handler)
 
 tags_metadata = [
     {
