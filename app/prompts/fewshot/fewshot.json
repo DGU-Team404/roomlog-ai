@@ -64,5 +64,77 @@
     "defect": "BREAKAGE",
     "severity": "HIGH",
     "description": "가구 문짝 표면이 뜯겨 나가 하부 자재가 드러난 파손. 뜯긴 부분의 질감이 주변과 달리 거칠고 움푹 들어가 있음"
+  },
+  {
+    "file": "defect_ex_12.jpg",
+    "defect": "STAIN",
+    "severity": "LOW",
+    "description": "마루 바닥에 검게 번진 작은 얼룩. 나뭇결과 무관하게 불규칙한 방향으로 번져 있고 표면 파임은 없음"
+  },
+  {
+    "file": "defect_ex_13.jpg",
+    "defect": "SCRATCH",
+    "severity": "LOW",
+    "description": "밝은 회색 바닥 표면의 희미하게 흩어진 잔 긁힘 자국. 색 차이가 약해도 무늬와 달리 방향이 제각각인 잔 자국 무리는 하자"
+  },
+  {
+    "file": "defect_ex_14.jpg",
+    "defect": "STAIN",
+    "severity": "LOW",
+    "description": "바닥 타일 여러 장을 대각선으로 가로지르는 가는 긁힘 선. 곧게 뻗은 타일 이음선과 달리 이음선을 무시하고 지나감"
+  },
+  {
+    "file": "defect_ex_15.jpg",
+    "defect": "PEELING",
+    "severity": "HIGH",
+    "description": "표면 시트지가 크게 말려 올라가며 벗겨져 안쪽 면이 드러남."
+  },
+  {
+    "file": "defect_ex_16.jpg",
+    "defect": "CRACK",
+    "severity": "MEDIUM",
+    "description": "벽 매입 설비 주변에서 사방으로 뻗어 나간 가는 균열. 설비 테두리의 직선 경계와 달리 불규칙하게 갈라져 있음"
+  },
+  {
+    "file": "defect_ex_17.jpg",
+    "defect": "BREAKAGE",
+    "severity": "HIGH",
+    "description": "벽돌 표면 도장이 넓게 떨어져 나가 어두운 내부가 드러난 파손. 벗겨진 경계가 날카롭고 깊이 차이가 보임"
+  },
+  {
+    "file": "defect_ex_18.jpg",
+    "defect": "STAIN",
+    "severity": "MEDIUM",
+    "description": "벽돌 표면 전체에 검게 낀 그을음성 얼룩. 표면 요철은 유지된 채 색만 어둡게 변해 있음"
+  },
+  {
+    "file": "defect_ex_19.jpg",
+    "defect": "STAIN",
+    "severity": "HIGH",
+    "description": "벽돌 한 장이 전체적으로 짙게 변색된 얼룩. 주변 벽돌과 명확히 대비될 만큼 어둡고 경계가 불규칙하게 번져 있음"
+  },
+  {
+    "file": "defect_ex_20.jpg",
+    "defect": "CRACK",
+    "severity": "HIGH",
+    "description": "벽돌 표면에 그물처럼 여러 갈래로 갈라진 균열망. 갈라진 선들이 서로 연결되며 어둡고 날카롭게 파여 있음"
+  },
+  {
+    "file": "defect_ex_21.jpg",
+    "defect": "CRACK",
+    "severity": "HIGH",
+    "description": "벽과 걸레받이 접합부를 따라 세로로 갈라진 균열. 틈이 벌어져 어두운 속이 보이며 가장자리가 들쭉날쭉함"
+  },
+  {
+    "file": "defect_ex_22.jpg",
+    "defect": "CRACK",
+    "severity": "HIGH",
+    "description": "밝은 표면이 사선으로 터져 벌어진 균열. 가늘고 날카로운 선 형태로, 중앙부가 어둡게 벌어져 있고 떨어져 나간 조각은 없음"
+  },
+  {
+    "file": "defect_ex_23.jpg",
+    "defect": "BREAKAGE",
+    "severity": "HIGH",
+    "description": "가구 문짝 시트지가 뜯겨 나가 바탕 자재가 드러난 파손. 뜯긴 경계가 불규칙하게 찢겨 있고 안쪽 색이 주변과 다름"
   }
 ]
